@@ -10,393 +10,359 @@
   <title>AR Hunt</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
     :root {
-      --neon: #00ffe7;
-      --neon2: #ff4ecd;
-      --warn: #ffd600;
-      --bg: #0a0a0f;
-      --glass: rgba(10,10,20,0.72);
-      --radius: 16px;
+      --neon: #00ffe7; --neon2: #ff4ecd; --warn: #ffd600;
+      --bg: #0a0a0f; --glass: rgba(10,10,20,0.78); --radius: 16px;
       --font: 'Segoe UI', system-ui, sans-serif;
     }
+    body { background:var(--bg); color:#fff; font-family:var(--font); overflow:hidden; height:100dvh; width:100vw; position:fixed; }
 
-    body {
-      background: var(--bg);
-      color: #fff;
-      font-family: var(--font);
-      overflow: hidden;
-      height: 100dvh;
-      width: 100vw;
-      position: fixed;
-    }
+    .screen { position:absolute; inset:0; display:flex; flex-direction:column; transition:opacity .3s; }
+    .screen.hidden { opacity:0; pointer-events:none; }
 
-    /* ── SCREENS ── */
-    .screen { position: absolute; inset: 0; display: flex; flex-direction: column; transition: opacity .3s; }
-    .screen.hidden { opacity: 0; pointer-events: none; }
-
-    /* ── CAMERA VIEW ── */
-    #video {
-      position: fixed; inset: 0;
-      width: 100%; height: 100%;
-      object-fit: cover;
-      z-index: 0;
-    }
-
-    #ar-canvas {
-      position: fixed; inset: 0;
-      width: 100%; height: 100%;
-      z-index: 1;
-      pointer-events: none;
-    }
+    /* ── CAMERA ── */
+    #video { position:fixed; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; }
+    #ar-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:1; pointer-events:none; }
 
     /* ── HUD ── */
-    #hud {
-      position: fixed; inset: 0;
-      z-index: 2;
-      pointer-events: none;
-    }
-
+    #hud { position:fixed; inset:0; z-index:2; pointer-events:none; }
     .hud-top {
-      display: flex; justify-content: space-between; align-items: flex-start;
-      padding: 52px 16px 12px;
-      background: linear-gradient(to bottom, rgba(0,0,0,.55) 0%, transparent 100%);
-      pointer-events: all;
+      display:flex; justify-content:space-between; align-items:flex-start;
+      padding:52px 16px 12px;
+      background:linear-gradient(to bottom,rgba(0,0,0,.55) 0%,transparent 100%);
+      pointer-events:all;
     }
-
     .hud-bottom {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      padding: 12px 16px 32px;
-      background: linear-gradient(to top, rgba(0,0,0,.6) 0%, transparent 100%);
-      display: flex; align-items: flex-end; justify-content: space-between;
-      pointer-events: all;
+      position:absolute; bottom:0; left:0; right:0;
+      padding:12px 16px 32px;
+      background:linear-gradient(to top,rgba(0,0,0,.6) 0%,transparent 100%);
+      display:flex; align-items:flex-end; justify-content:space-between; gap:10px;
+      pointer-events:all;
     }
+    .hud-btn-group { display:flex; gap:10px; }
 
-    /* GPS Chip */
     .gps-chip {
-      display: flex; align-items: center; gap: 6px;
-      background: var(--glass);
-      border: 1px solid rgba(0,255,231,.25);
-      backdrop-filter: blur(10px);
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 11px;
-      letter-spacing: .04em;
+      display:flex; align-items:center; gap:6px;
+      background:var(--glass); border:1px solid rgba(0,255,231,.25);
+      backdrop-filter:blur(10px); padding:6px 12px; border-radius:20px; font-size:11px;
     }
-    .gps-dot {
-      width: 7px; height: 7px; border-radius: 50%;
-      background: var(--neon);
-      box-shadow: 0 0 6px var(--neon);
-      animation: pulse 2s infinite;
-    }
+    .gps-dot { width:7px; height:7px; border-radius:50%; background:var(--neon); box-shadow:0 0 6px var(--neon); animation:pulse 2s infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
-    /* Compass ring */
-    #compass-wrap {
-      display: flex; flex-direction: column; align-items: center; gap: 4px;
-    }
-    #compass-ring {
-      width: 56px; height: 56px;
-      border-radius: 50%;
-      border: 2px solid rgba(0,255,231,.3);
-      background: var(--glass);
-      backdrop-filter: blur(8px);
-      position: relative;
-      display: flex; align-items: center; justify-content: center;
-    }
-    #compass-needle {
-      width: 2px; height: 22px;
-      background: linear-gradient(to top, #555, var(--neon2), #fff);
-      border-radius: 2px;
-      transform-origin: bottom center;
-      position: absolute;
-      bottom: 50%; left: 50%;
-      translate: -50% 0;
-      transition: transform .2s ease-out;
-    }
-    .compass-n {
-      font-size: 9px; color: var(--neon); letter-spacing: .1em; font-weight: 700;
-    }
+    /* ── RADAR ── */
+    #radar-wrap { display:flex; flex-direction:column; align-items:center; gap:3px; }
+    #radar-canvas { border-radius:50%; display:block; }
+    .radar-label { font-size:9px; color:rgba(0,255,231,.6); letter-spacing:.1em; font-weight:700; }
 
-    /* Object counter badge */
     .badge {
-      background: var(--glass);
-      border: 1px solid rgba(255,78,205,.3);
-      backdrop-filter: blur(10px);
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 12px;
+      background:var(--glass); border:1px solid rgba(255,78,205,.3);
+      backdrop-filter:blur(10px); padding:6px 14px; border-radius:20px; font-size:12px;
     }
-    .badge span { color: var(--neon2); font-weight: 700; }
+    .badge span { color:var(--neon2); font-weight:700; }
 
-    /* Manage button */
     .icon-btn {
-      width: 46px; height: 46px;
-      border-radius: 50%;
-      border: 1px solid rgba(0,255,231,.3);
-      background: var(--glass);
-      backdrop-filter: blur(10px);
-      color: #fff;
-      font-size: 20px;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: background .2s;
+      width:46px; height:46px; border-radius:50%;
+      border:1px solid rgba(0,255,231,.3); background:var(--glass);
+      backdrop-filter:blur(10px); color:#fff; font-size:20px;
+      cursor:pointer; display:flex; align-items:center; justify-content:center;
+      transition:background .2s; flex-shrink:0;
     }
-    .icon-btn:active { background: rgba(0,255,231,.15); }
+    .icon-btn:active { background:rgba(0,255,231,.15); }
 
-    /* Distance indicator bar */
     #dist-bar {
-      position: absolute; top: 50%; left: 50%;
-      translate: -50% 0;
-      background: var(--glass);
-      border: 1px solid rgba(255,255,255,.12);
-      backdrop-filter: blur(8px);
-      padding: 6px 16px;
-      border-radius: 20px;
-      font-size: 12px;
-      white-space: nowrap;
-      pointer-events: none;
+      position:absolute; top:50%; left:50%; translate:-50% 0;
+      background:var(--glass); border:1px solid rgba(255,255,255,.12);
+      backdrop-filter:blur(8px); padding:6px 16px; border-radius:20px;
+      font-size:12px; white-space:nowrap; pointer-events:none;
     }
-
-    /* Crosshair */
-    .crosshair {
-      position: absolute; top: 50%; left: 50%;
-      translate: -50% -50%;
-      width: 40px; height: 40px;
-      pointer-events: none;
-    }
-    .crosshair::before, .crosshair::after {
-      content: '';
-      position: absolute;
-      background: rgba(255,255,255,.5);
-    }
-    .crosshair::before { width: 1px; height: 100%; left: 50%; translate: -50% 0; }
-    .crosshair::after { width: 100%; height: 1px; top: 50%; translate: 0 -50%; }
+    .crosshair { position:absolute; top:50%; left:50%; translate:-50% -50%; width:40px; height:40px; pointer-events:none; }
+    .crosshair::before,.crosshair::after { content:''; position:absolute; background:rgba(255,255,255,.5); }
+    .crosshair::before { width:1px; height:100%; left:50%; translate:-50% 0; }
+    .crosshair::after { width:100%; height:1px; top:50%; translate:0 -50%; }
 
     /* ── FOUND FLASH ── */
     #found-flash {
-      position: fixed; inset: 0; z-index: 10;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      background: rgba(0,0,0,.7);
-      backdrop-filter: blur(6px);
-      opacity: 0; pointer-events: none;
-      transition: opacity .3s;
+      position:fixed; inset:0; z-index:10;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      background:rgba(0,0,0,.75); backdrop-filter:blur(8px);
+      opacity:0; pointer-events:none; transition:opacity .3s; padding:30px;
     }
-    #found-flash.show { opacity: 1; pointer-events: all; }
-    .found-icon { font-size: 64px; animation: pop .4s cubic-bezier(.17,.67,.35,1.4); }
+    #found-flash.show { opacity:1; pointer-events:all; }
+    .found-icon { font-size:60px; animation:pop .45s cubic-bezier(.17,.67,.35,1.4); }
     @keyframes pop { from{scale:0} to{scale:1} }
-    .found-title { font-size: 28px; font-weight: 800; color: var(--neon); margin: 12px 0 4px; }
-    .found-name { font-size: 16px; color: rgba(255,255,255,.8); margin-bottom: 24px; }
+    .found-title { font-size:28px; font-weight:800; color:var(--neon); margin:10px 0 4px; }
+    .found-name { font-size:16px; color:rgba(255,255,255,.8); margin-bottom:18px; }
     .found-img-wrap {
-      width: 140px; height: 140px; border-radius: 20px; overflow: hidden;
-      border: 2px solid var(--neon);
-      box-shadow: 0 0 24px rgba(0,255,231,.4);
-      margin-bottom: 24px;
+      width:150px; height:150px; border-radius:20px; overflow:hidden;
+      border:2px solid var(--neon); box-shadow:0 0 28px rgba(0,255,231,.4); margin-bottom:16px;
     }
-    .found-img-wrap img { width: 100%; height: 100%; object-fit: cover; }
-    .found-dist { font-size: 13px; color: rgba(255,255,255,.5); margin-bottom: 28px; }
+    .found-img-wrap img { width:100%; height:100%; object-fit:cover; }
+    .found-dist { font-size:13px; color:rgba(255,255,255,.45); margin-bottom:24px; }
+    .found-btns { display:flex; gap:12px; }
     .btn-primary {
-      padding: 14px 36px;
-      border-radius: 30px;
-      background: var(--neon);
-      color: var(--bg);
-      font-weight: 700; font-size: 16px;
-      border: none; cursor: pointer;
-      transition: scale .15s;
+      padding:13px 28px; border-radius:30px; background:var(--neon); color:var(--bg);
+      font-weight:700; font-size:15px; border:none; cursor:pointer; transition:scale .15s;
     }
-    .btn-primary:active { scale: .97; }
+    .btn-primary:active { scale:.97; }
+    .btn-secondary {
+      padding:13px 28px; border-radius:30px;
+      background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.2);
+      color:#fff; font-weight:600; font-size:15px; cursor:pointer; transition:background .2s;
+    }
+    .btn-secondary:active { background:rgba(255,255,255,.15); }
 
-    /* ── MANAGER PANEL ── */
-    #manager {
-      background: var(--bg);
-      z-index: 20;
-      overflow-y: auto;
+    /* ── PUZZLE PIECE reveal on found ── */
+    .puzzle-reveal {
+      background:rgba(255,214,0,.08); border:1px solid rgba(255,214,0,.3);
+      border-radius:12px; padding:10px 18px; margin-bottom:18px;
+      font-size:12px; color:var(--warn); text-align:center; letter-spacing:.04em;
     }
 
+    /* ── MATH GATE ── */
+    #math-gate {
+      position:fixed; inset:0; z-index:25;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      background:rgba(0,0,0,.88); backdrop-filter:blur(10px);
+      opacity:0; pointer-events:none; transition:opacity .25s; padding:32px;
+    }
+    #math-gate.show { opacity:1; pointer-events:all; }
+    .gate-icon { font-size:44px; margin-bottom:12px; }
+    .gate-title { font-size:20px; font-weight:800; margin-bottom:6px; }
+    .gate-sub { font-size:13px; color:rgba(255,255,255,.45); margin-bottom:28px; text-align:center; }
+    .math-box {
+      background:rgba(0,255,231,.06); border:1px solid rgba(0,255,231,.2);
+      border-radius:16px; padding:24px 32px; margin-bottom:24px; text-align:center;
+    }
+    .math-question { font-size:32px; font-weight:800; letter-spacing:.04em; color:var(--neon); }
+    .math-input {
+      width:100%; max-width:220px; background:rgba(255,255,255,.07);
+      border:1px solid rgba(255,255,255,.15); border-radius:12px;
+      color:#fff; padding:14px; font-size:22px; font-weight:700;
+      text-align:center; outline:none; margin-bottom:14px; font-family:var(--font);
+      transition:border-color .2s;
+    }
+    .math-input:focus { border-color:var(--neon); }
+    .math-error { font-size:13px; color:#ff5e5e; margin-bottom:12px; min-height:18px; }
+    .gate-btns { display:flex; gap:12px; width:100%; max-width:280px; }
+    .gate-btns .btn-primary { flex:1; }
+    .gate-btns .btn-secondary { flex:1; }
+
+    /* ── PANELS (shared) ── */
+    #manager, #gallery {
+      background:var(--bg); z-index:20; overflow-y:auto;
+    }
     .panel-header {
-      padding: 52px 20px 16px;
-      display: flex; align-items: center; justify-content: space-between;
-      border-bottom: 1px solid rgba(255,255,255,.08);
-      position: sticky; top: 0;
-      background: var(--bg);
-      z-index: 1;
+      padding:52px 20px 16px; display:flex; align-items:center; justify-content:space-between;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      position:sticky; top:0; background:var(--bg); z-index:1;
     }
-    .panel-title { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
-    .panel-title span { color: var(--neon); }
-
+    .panel-title { font-size:22px; font-weight:800; letter-spacing:-.02em; }
+    .panel-title span { color:var(--neon); }
     .close-btn {
-      width: 36px; height: 36px;
-      border-radius: 50%;
-      border: 1px solid rgba(255,255,255,.15);
-      background: transparent;
-      color: #fff; font-size: 18px;
-      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      width:36px; height:36px; border-radius:50%;
+      border:1px solid rgba(255,255,255,.15); background:transparent;
+      color:#fff; font-size:18px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
     }
 
-    /* Object list */
-    #object-list { padding: 12px 20px; display: flex; flex-direction: column; gap: 12px; }
-
+    /* ── MANAGER ── */
+    #object-list { padding:12px 20px; display:flex; flex-direction:column; gap:12px; }
     .obj-card {
-      display: flex; gap: 14px; align-items: center;
-      background: rgba(255,255,255,.04);
-      border: 1px solid rgba(255,255,255,.08);
-      border-radius: var(--radius);
-      padding: 12px;
-      position: relative;
+      display:flex; gap:14px; align-items:center;
+      background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+      border-radius:var(--radius); padding:12px; position:relative;
     }
     .obj-card-img {
-      width: 60px; height: 60px; border-radius: 10px;
-      object-fit: cover; flex-shrink: 0;
-      background: rgba(255,255,255,.06);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 28px;
+      width:60px; height:60px; border-radius:10px; object-fit:cover; flex-shrink:0;
+      background:rgba(255,255,255,.06); display:flex; align-items:center; justify-content:center; font-size:28px;
     }
-    .obj-card-img img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
-    .obj-card-info { flex: 1; min-width: 0; }
-    .obj-card-name { font-weight: 700; font-size: 15px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .obj-card-coords { font-size: 11px; color: rgba(255,255,255,.4); font-family: monospace; }
-    .obj-card-dist { font-size: 11px; color: var(--neon); margin-top: 3px; }
+    .obj-card-img img { width:100%; height:100%; object-fit:cover; border-radius:10px; }
+    .obj-card-info { flex:1; min-width:0; }
+    .obj-card-name { font-weight:700; font-size:15px; margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .obj-card-coords { font-size:11px; color:rgba(255,255,255,.4); font-family:monospace; }
+    .obj-card-dist { font-size:11px; color:var(--neon); margin-top:3px; }
     .del-btn {
-      width: 30px; height: 30px;
-      border-radius: 50%;
-      border: 1px solid rgba(255,78,78,.3);
-      background: rgba(255,78,78,.1);
-      color: #ff4e4e; font-size: 16px;
-      cursor: pointer; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
+      width:30px; height:30px; border-radius:50%;
+      border:1px solid rgba(255,78,78,.3); background:rgba(255,78,78,.1);
+      color:#ff4e4e; font-size:16px; cursor:pointer; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center;
     }
 
-    /* Add form */
     #add-form {
-      margin: 0 20px 40px;
-      background: rgba(255,255,255,.03);
-      border: 1px solid rgba(0,255,231,.12);
-      border-radius: var(--radius);
-      padding: 18px;
+      margin:0 20px 40px; background:rgba(255,255,255,.03);
+      border:1px solid rgba(0,255,231,.12); border-radius:var(--radius); padding:18px;
     }
-    .form-title {
-      font-size: 14px; font-weight: 700; color: var(--neon);
-      letter-spacing: .06em; text-transform: uppercase;
-      margin-bottom: 14px;
-    }
-    .form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-    .form-row label { font-size: 12px; color: rgba(255,255,255,.5); }
+    .form-title { font-size:14px; font-weight:700; color:var(--neon); letter-spacing:.06em; text-transform:uppercase; margin-bottom:14px; }
+    .form-row { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+    .form-row label { font-size:12px; color:rgba(255,255,255,.5); }
     .form-row input {
-      background: rgba(255,255,255,.06);
-      border: 1px solid rgba(255,255,255,.12);
-      border-radius: 10px;
-      color: #fff;
-      padding: 10px 14px;
-      font-size: 14px;
-      outline: none;
-      font-family: var(--font);
-      transition: border-color .2s;
+      background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+      border-radius:10px; color:#fff; padding:10px 14px; font-size:14px;
+      outline:none; font-family:var(--font); transition:border-color .2s;
     }
-    .form-row input:focus { border-color: var(--neon); }
-    .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .form-row input:focus { border-color:var(--neon); }
+    .form-row-2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 
-    /* Image picker */
     #img-preview-wrap {
-      width: 100%; height: 120px;
-      border: 2px dashed rgba(0,255,231,.2);
-      border-radius: 12px;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 8px; cursor: pointer; margin-bottom: 12px;
-      overflow: hidden; position: relative;
-      background: rgba(0,255,231,.03);
-      transition: border-color .2s;
+      width:100%; height:120px; border:2px dashed rgba(0,255,231,.2); border-radius:12px;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      gap:8px; cursor:pointer; margin-bottom:12px;
+      overflow:hidden; background:rgba(0,255,231,.03); transition:border-color .2s;
     }
-    #img-preview-wrap:active { border-color: var(--neon); }
-    #img-preview { width: 100%; height: 100%; object-fit: cover; display: none; }
-    .img-placeholder { font-size: 30px; }
-    .img-hint { font-size: 12px; color: rgba(255,255,255,.4); }
-    #file-input { display: none; }
+    #img-preview-wrap:active { border-color:var(--neon); }
+    #img-preview { width:100%; height:100%; object-fit:cover; display:none; }
+    .img-placeholder { font-size:30px; }
+    .img-hint { font-size:12px; color:rgba(255,255,255,.4); }
+    #file-input { display:none; }
 
-    /* GPS auto button */
     .gps-auto-btn {
-      display: flex; align-items: center; gap: 8px;
-      background: rgba(0,255,231,.07);
-      border: 1px solid rgba(0,255,231,.2);
-      border-radius: 10px;
-      color: var(--neon);
-      font-size: 13px; font-weight: 600;
-      padding: 8px 14px;
-      cursor: pointer; margin-bottom: 12px;
-      transition: background .2s;
+      display:flex; align-items:center; gap:8px;
+      background:rgba(0,255,231,.07); border:1px solid rgba(0,255,231,.2);
+      border-radius:10px; color:var(--neon); font-size:13px; font-weight:600;
+      padding:8px 14px; cursor:pointer; margin-bottom:12px; transition:background .2s;
     }
-    .gps-auto-btn:active { background: rgba(0,255,231,.15); }
+    .gps-auto-btn:active { background:rgba(0,255,231,.15); }
 
     .btn-add {
-      width: 100%; padding: 14px;
-      border-radius: 12px;
-      background: linear-gradient(135deg, var(--neon), #00c9a7);
-      color: var(--bg); font-weight: 800; font-size: 16px;
-      border: none; cursor: pointer;
-      transition: opacity .15s;
+      width:100%; padding:14px; border-radius:12px;
+      background:linear-gradient(135deg,var(--neon),#00c9a7);
+      color:var(--bg); font-weight:800; font-size:16px; border:none; cursor:pointer; transition:opacity .15s;
     }
-    .btn-add:active { opacity: .85; }
+    .btn-add:active { opacity:.85; }
 
-    /* Status messages */
+    /* ── PROGRESS BAR ── */
+    #progress-bar-wrap {
+      margin: 10px 20px 0; position: relative;
+      background: rgba(255,255,255,.07); border-radius: 20px; height: 8px; overflow: hidden;
+    }
+    #progress-bar-fill {
+      height: 100%; border-radius: 20px; width: 0%;
+      background: linear-gradient(90deg, var(--neon), #00c9a7);
+      transition: width .8s cubic-bezier(.34,1.56,.64,1);
+      box-shadow: 0 0 8px rgba(0,255,231,.5);
+    }
+    #progress-bar-label {
+      text-align: center; font-size: 10px; color: rgba(255,255,255,.35);
+      margin-top: 5px; letter-spacing: .04em;
+    }
+
+    /* ── GALLERY ── */
+    .gallery-stats {
+      display:flex; gap:10px; padding:14px 20px; border-bottom:1px solid rgba(255,255,255,.07);
+    }
+    .stat-chip {
+      flex:1; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+      border-radius:12px; padding:10px; text-align:center;
+    }
+    .stat-num { font-size:22px; font-weight:800; color:var(--neon); }
+    .stat-lbl { font-size:10px; color:rgba(255,255,255,.4); margin-top:2px; }
+
+    #gallery-grid {
+      padding:16px 20px 40px;
+      display:grid; grid-template-columns:1fr 1fr; gap:12px;
+    }
+    .gal-card {
+      background:rgba(255,255,255,.04); border-radius:var(--radius);
+      overflow:hidden; position:relative;
+      border:1px solid rgba(255,255,255,.08);
+      transition:border-color .2s;
+    }
+    .gal-card.found-card {
+      border-color: rgba(0,255,231,.4);
+      animation: foundGlow 3s ease-in-out infinite;
+    }
+    @keyframes foundGlow {
+      0%,100% { box-shadow: 0 0 8px rgba(0,255,231,.1); }
+      50% { box-shadow: 0 0 18px rgba(0,255,231,.25); }
+    }
+    .gal-card.locked-card { border-color:rgba(255,255,255,.06); opacity:.65; }
+
+    .gal-img-wrap {
+      width:100%; aspect-ratio:1/1; overflow:hidden; position:relative;
+      background:rgba(255,255,255,.04); display:flex; align-items:center; justify-content:center;
+    }
+    .gal-img-wrap img { width:100%; height:100%; object-fit:cover; }
+    .gal-lock-overlay {
+      position:absolute; inset:0;
+      background:rgba(0,0,0,.7); backdrop-filter:blur(6px);
+      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+    }
+    .gal-lock-icon { font-size:32px; }
+    .gal-lock-text { font-size:11px; color:rgba(255,255,255,.5); text-align:center; padding:0 8px; }
+
+    /* puzzle piece overlay on found cards */
+    .puzzle-badge {
+      position:absolute; top:6px; right:6px;
+      background:var(--neon); color:var(--bg); font-size:9px; font-weight:800;
+      padding:3px 7px; border-radius:20px; letter-spacing:.04em;
+    }
+
+    .gal-info { padding:10px 12px; }
+    .gal-name { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .gal-meta { font-size:10px; color:rgba(255,255,255,.4); margin-top:3px; }
+    .gal-meta.found-meta { color:var(--neon); }
+
+    .gallery-empty {
+      padding:40px 20px; text-align:center; color:rgba(255,255,255,.35); font-size:14px;
+    }
+
+    /* ── PUZZLE BOARD ── (full-width section in gallery) */
+    #puzzle-section {
+      margin:0 20px 16px;
+      background:rgba(255,214,0,.04); border:1px solid rgba(255,214,0,.15);
+      border-radius:var(--radius); padding:16px;
+    }
+    .puzzle-title { font-size:13px; font-weight:700; color:var(--warn); letter-spacing:.05em; text-transform:uppercase; margin-bottom:12px; }
+    #puzzle-pieces {
+      display:flex; flex-wrap:wrap; gap:8px;
+    }
+    .puzzle-piece {
+      width: 82px; height: 82px; border-radius: 12px; overflow: hidden;
+      border: 2px solid rgba(255,214,0,.5); position: relative;
+      box-shadow: 0 0 16px rgba(255,214,0,.2);
+      cursor: pointer; transition: transform .15s;
+    }
+    .puzzle-piece:active { transform: scale(.95); }
+    .puzzle-piece img { width:100%; height:100%; object-fit:cover; }
+    .puzzle-piece-num {
+      position:absolute; bottom:2px; right:4px;
+      font-size:9px; font-weight:800; color:rgba(255,214,0,.9); text-shadow:0 1px 3px #000;
+    }
+    .puzzle-empty { font-size:12px; color:rgba(255,255,255,.3); }
+
+    /* ── STATUS TOAST ── */
     #status-msg {
-      position: fixed; bottom: 80px; left: 50%; translate: -50% 0;
-      background: var(--glass);
-      border: 1px solid rgba(255,255,255,.15);
-      backdrop-filter: blur(12px);
-      padding: 10px 20px;
-      border-radius: 20px;
-      font-size: 13px;
-      z-index: 15;
-      opacity: 0;
-      transition: opacity .3s;
-      white-space: nowrap;
+      position:fixed; bottom:80px; left:50%; translate:-50% 0;
+      background:var(--glass); border:1px solid rgba(255,255,255,.15);
+      backdrop-filter:blur(12px); padding:10px 20px; border-radius:20px;
+      font-size:13px; z-index:15; opacity:0; transition:opacity .3s; white-space:nowrap;
     }
-    #status-msg.show { opacity: 1; }
+    #status-msg.show { opacity:1; }
 
-    /* Radar blip on AR canvas */
-    .no-objects {
-      position: absolute; top: 50%; left: 50%; translate: -50% -50%;
-      text-align: center;
-      color: rgba(255,255,255,.4);
-      font-size: 14px;
-      pointer-events: none;
-    }
-
-    /* ── PERMISSION SCREEN ── */
+    /* ── PERM SCREEN ── */
     #perm-screen {
-      background: var(--bg);
-      align-items: center; justify-content: center;
-      text-align: center;
-      padding: 40px;
-      gap: 16px;
-      z-index: 30;
+      background:var(--bg); align-items:center; justify-content:center;
+      text-align:center; padding:40px; gap:16px; z-index:30;
     }
-    .perm-icon { font-size: 56px; }
-    .perm-title { font-size: 24px; font-weight: 800; }
-    .perm-sub { font-size: 14px; color: rgba(255,255,255,.5); line-height: 1.6; }
-    .perm-list {
-      display: flex; flex-direction: column; gap: 8px;
-      text-align: left; width: 100%; max-width: 300px;
-    }
+    .perm-icon { font-size:56px; }
+    .perm-title { font-size:24px; font-weight:800; }
+    .perm-sub { font-size:14px; color:rgba(255,255,255,.5); line-height:1.6; }
+    .perm-list { display:flex; flex-direction:column; gap:8px; text-align:left; width:100%; max-width:300px; }
     .perm-item {
-      display: flex; gap: 12px; align-items: center;
-      background: rgba(255,255,255,.04);
-      border: 1px solid rgba(255,255,255,.08);
-      border-radius: 12px; padding: 12px;
-      font-size: 13px;
+      display:flex; gap:12px; align-items:center;
+      background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+      border-radius:12px; padding:12px; font-size:13px;
     }
-    .perm-item-icon { font-size: 22px; }
+    .perm-item-icon { font-size:22px; }
 
-    /* Scan line animation */
-    @keyframes scanline {
-      0% { top: 0; } 100% { top: 100%; }
-    }
+    @keyframes scanline { 0%{top:0} 100%{top:100%} }
     .scan-line {
-      position: fixed; left: 0; right: 0; height: 2px;
-      background: linear-gradient(to right, transparent, var(--neon), transparent);
-      opacity: .4;
-      animation: scanline 3s linear infinite;
-      z-index: 3; pointer-events: none;
+      position:fixed; left:0; right:0; height:2px;
+      background:linear-gradient(to right,transparent,var(--neon),transparent);
+      opacity:.35; animation:scanline 3s linear infinite; z-index:3; pointer-events:none;
     }
+
+    .no-items-hint { padding:20px 0; text-align:center; color:rgba(255,255,255,.35); font-size:13px; }
   </style>
 </head>
 <body>
@@ -426,11 +392,9 @@
         <div class="gps-dot"></div>
         <span id="gps-label">GPS suchen…</span>
       </div>
-      <div id="compass-wrap">
-        <div id="compass-ring">
-          <div id="compass-needle"></div>
-        </div>
-        <div class="compass-n">N</div>
+      <div id="radar-wrap">
+        <canvas id="radar-canvas" width="96" height="96"></canvas>
+        <div class="radar-label">RADAR</div>
       </div>
     </div>
 
@@ -438,8 +402,11 @@
     <div id="dist-bar">↑ Richte Kamera auf ein Objekt</div>
 
     <div class="hud-bottom">
-      <div class="badge">Objekte: <span id="obj-count">0</span></div>
-      <button class="icon-btn" id="open-manager-btn" title="Objekte verwalten">⚙️</button>
+      <div class="badge">Gefunden: <span id="found-count">0</span>/<span id="obj-count">0</span></div>
+      <div class="hud-btn-group">
+        <button class="icon-btn" id="open-gallery-btn" title="Galerie">🏆</button>
+        <button class="icon-btn" id="open-manager-btn" title="Objekte verwalten">⚙️</button>
+      </div>
     </div>
   </div>
 </div>
@@ -449,11 +416,29 @@
   <div class="found-icon">🎉</div>
   <div class="found-title">Gefunden!</div>
   <div class="found-name" id="found-name">-</div>
-  <div class="found-img-wrap" id="found-img-wrap">
-    <img id="found-img" src="" alt="">
-  </div>
+  <div class="found-img-wrap" id="found-img-wrap"><img id="found-img" src="" alt=""></div>
+  <div class="puzzle-reveal">🧩 Puzzlestück #<span id="found-piece-num">1</span> freigeschaltet!</div>
   <div class="found-dist" id="found-dist"></div>
-  <button class="btn-primary" id="found-close-btn">Weiter suchen</button>
+  <div class="found-btns">
+    <button class="btn-secondary" id="found-gallery-btn">Galerie 🏆</button>
+    <button class="btn-primary" id="found-close-btn">Weiter →</button>
+  </div>
+</div>
+
+<!-- Math Gate -->
+<div id="math-gate">
+  <div class="gate-icon">🔒</div>
+  <div class="gate-title">Zugriffssicherung</div>
+  <div class="gate-sub">Löse die Aufgabe, um Objekte zu verwalten.</div>
+  <div class="math-box">
+    <div class="math-question" id="math-question">? × ? = ?</div>
+  </div>
+  <input class="math-input" id="math-input" type="number" inputmode="numeric" placeholder="Antwort…">
+  <div class="math-error" id="math-error"></div>
+  <div class="gate-btns">
+    <button class="btn-secondary" id="gate-cancel-btn">Abbrechen</button>
+    <button class="btn-primary" id="gate-confirm-btn">Bestätigen</button>
+  </div>
 </div>
 
 <!-- Manager Panel -->
@@ -462,30 +447,20 @@
     <div class="panel-title">Objekte <span>verwalten</span></div>
     <button class="close-btn" id="close-manager-btn">✕</button>
   </div>
-
-  <div id="object-list">
-    <div class="no-objects" id="no-obj-hint" style="position:relative;top:auto;left:auto;translate:none;padding:20px 0;">Noch keine Objekte. Füge unten eines hinzu.</div>
-  </div>
-
+  <div id="object-list"></div>
   <div id="add-form">
     <div class="form-title">+ Neues Objekt</div>
-
     <div class="form-row">
       <label>Name</label>
       <input type="text" id="inp-name" placeholder="z.B. Goldener Schlüssel">
     </div>
-
     <div id="img-preview-wrap" onclick="document.getElementById('file-input').click()">
       <img id="img-preview" alt="Vorschau">
       <div class="img-placeholder">🖼️</div>
       <div class="img-hint">Bild tippen zum auswählen</div>
     </div>
     <input type="file" id="file-input" accept="image/*">
-
-    <button class="gps-auto-btn" id="gps-auto-btn">
-      <span>📍</span> Aktuelle GPS Position verwenden
-    </button>
-
+    <button class="gps-auto-btn" id="gps-auto-btn"><span>📍</span> Aktuelle GPS Position verwenden</button>
     <div class="form-row-2">
       <div class="form-row" style="margin:0">
         <label>Breitengrad (Lat)</label>
@@ -501,417 +476,602 @@
       <label>Sichtbarkeits-Radius (Meter)</label>
       <input type="number" id="inp-radius" placeholder="50" value="50" min="5" max="5000">
     </div>
-
     <button class="btn-add" id="add-btn">Objekt verstecken 📦</button>
   </div>
 </div>
 
-<!-- Status Toast -->
+<!-- Gallery Panel -->
+<div class="screen hidden" id="gallery">
+  <div class="panel-header">
+    <div class="panel-title">Fund-<span>Galerie</span></div>
+    <button class="close-btn" id="close-gallery-btn">✕</button>
+  </div>
+  <div class="gallery-stats">
+    <div class="stat-chip"><div class="stat-num" id="stat-found">0</div><div class="stat-lbl">Gefunden</div></div>
+    <div class="stat-chip"><div class="stat-num" id="stat-total">0</div><div class="stat-lbl">Gesamt</div></div>
+    <div class="stat-chip"><div class="stat-num" id="stat-pct">0%</div><div class="stat-lbl">Abschluss</div></div>
+  </div>
+  <div id="progress-bar-wrap">
+    <div id="progress-bar-fill"></div>
+    <div id="progress-bar-label">0 von 0 gefunden</div>
+  </div>
+  <!-- Puzzle board -->
+  <div id="puzzle-section">
+    <div class="puzzle-title">🧩 Puzzlestücke</div>
+    <div id="puzzle-pieces"></div>
+  </div>
+  <div id="gallery-grid"></div>
+</div>
+
 <div id="status-msg"></div>
 
 <script>
-// ── STATE ──
-let objects = JSON.parse(localStorage.getItem('ar_objects') || '[]');
-let userPos = null;
-let heading = 0;         // compass heading degrees
-let stream = null;
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+let objects   = JSON.parse(localStorage.getItem('ar_objects')  || '[]');
+let foundIds  = JSON.parse(localStorage.getItem('ar_found')    || '[]');
+let userPos   = null;
+let heading   = 0;
+let stream    = null;
 let animFrame = null;
-let lastFoundId = null;
-let foundCooldown = {};  // id -> timestamp to avoid re-triggering
+let foundCooldown = {};
 
-const canvas = document.getElementById('ar-canvas');
-const ctx = canvas.getContext('2d');
-const video = document.getElementById('video');
+const canvas     = document.getElementById('ar-canvas');
+const ctx        = canvas.getContext('2d');
+const radarCv    = document.getElementById('radar-canvas');
+const rCtx       = radarCv.getContext('2d');
+const video      = document.getElementById('video');
 
-// ── HELPERS ──
-function save() { localStorage.setItem('ar_objects', JSON.stringify(objects)); }
+// ═══════════════════════════════════════════
+//  PERSISTENCE
+// ═══════════════════════════════════════════
+function save()      { localStorage.setItem('ar_objects', JSON.stringify(objects)); }
+function saveFound() { localStorage.setItem('ar_found',   JSON.stringify(foundIds)); }
 
-function showStatus(msg, duration = 2200) {
+// ═══════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════
+function showStatus(msg, d=2200) {
   const el = document.getElementById('status-msg');
-  el.textContent = msg;
-  el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), duration);
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), d);
 }
 
-function haversineM(lat1, lon1, lat2, lon2) {
-  const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+function haversineM(la1,lo1,la2,lo2) {
+  const R=6371000, dLa=(la2-la1)*Math.PI/180, dLo=(lo2-lo1)*Math.PI/180;
+  const a=Math.sin(dLa/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
-function bearingDeg(lat1, lon1, lat2, lon2) {
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
-  const x = Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180) -
-            Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);
-  return (Math.atan2(y, x) * 180/Math.PI + 360) % 360;
+function bearingDeg(la1,lo1,la2,lo2) {
+  const dLo=(lo2-lo1)*Math.PI/180;
+  const y=Math.sin(dLo)*Math.cos(la2*Math.PI/180);
+  const x=Math.cos(la1*Math.PI/180)*Math.sin(la2*Math.PI/180)-Math.sin(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.cos(dLo);
+  return(Math.atan2(y,x)*180/Math.PI+360)%360;
 }
 
-// Angular difference: shortest path between two bearings
-function angleDiff(a, b) {
-  let d = ((b - a + 540) % 360) - 180;
-  return d;
-}
+function angleDiff(a,b) { return((b-a+540)%360)-180; }
 
-// ── RENDER ──
-function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
+function fmtDist(d) { return d<1000?`${Math.round(d)}m`:`${(d/1000).toFixed(1)}km`; }
 
-// Preload images
+// ═══════════════════════════════════════════
+//  IMAGE CACHE
+// ═══════════════════════════════════════════
 const imgCache = {};
 function loadImg(obj) {
   if (!obj.imgData || imgCache[obj.id]) return;
-  const im = new Image();
-  im.src = obj.imgData;
-  imgCache[obj.id] = im;
+  const im = new Image(); im.src = obj.imgData; imgCache[obj.id] = im;
 }
 
+// ═══════════════════════════════════════════
+//  CANVAS RESIZE
+// ═══════════════════════════════════════════
+function resizeCanvas() { canvas.width=window.innerWidth; canvas.height=window.innerHeight; }
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function roundRect(c,x,y,w,h,r){
+  c.beginPath(); c.moveTo(x+r,y); c.lineTo(x+w-r,y); c.quadraticCurveTo(x+w,y,x+w,y+r);
+  c.lineTo(x+w,y+h-r); c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  c.lineTo(x+r,y+h); c.quadraticCurveTo(x,y+h,x,y+h-r);
+  c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y); c.closePath();
+}
+
+// ═══════════════════════════════════════════
+//  RADAR
+// ═══════════════════════════════════════════
+function drawRadar() {
+  const S = radarCv.width;
+  const cx = S/2, cy = S/2, R = S/2 - 2;
+  rCtx.clearRect(0,0,S,S);
+
+  // Background
+  const bg = rCtx.createRadialGradient(cx,cy,0,cx,cy,R);
+  bg.addColorStop(0,'rgba(0,30,25,0.92)');
+  bg.addColorStop(1,'rgba(0,10,8,0.95)');
+  rCtx.beginPath(); rCtx.arc(cx,cy,R,0,Math.PI*2);
+  rCtx.fillStyle=bg; rCtx.fill();
+  rCtx.strokeStyle='rgba(0,255,231,.3)'; rCtx.lineWidth=1.5; rCtx.stroke();
+
+  // Grid rings
+  [0.33,0.66,1].forEach(f => {
+    rCtx.beginPath(); rCtx.arc(cx,cy,R*f,0,Math.PI*2);
+    rCtx.strokeStyle=`rgba(0,255,231,${f===1?0.2:0.1})`; rCtx.lineWidth=0.8; rCtx.stroke();
+  });
+
+  // Cross lines
+  rCtx.strokeStyle='rgba(0,255,231,.1)'; rCtx.lineWidth=0.7;
+  rCtx.beginPath(); rCtx.moveTo(cx,cy-R); rCtx.lineTo(cx,cy+R); rCtx.stroke();
+  rCtx.beginPath(); rCtx.moveTo(cx-R,cy); rCtx.lineTo(cx+R,cy); rCtx.stroke();
+
+  // Sweep line (animated by time)
+  const sweep = (Date.now() / 2000 * Math.PI * 2) % (Math.PI*2);
+  const grad = rCtx.createConicalGradient ? null : null; // fallback: simple line
+  rCtx.save();
+  rCtx.beginPath(); rCtx.moveTo(cx,cy);
+  rCtx.arc(cx,cy,R,sweep-0.6,sweep);
+  rCtx.lineTo(cx,cy); rCtx.closePath();
+  rCtx.fillStyle='rgba(0,255,231,0.06)'; rCtx.fill();
+  rCtx.beginPath(); rCtx.moveTo(cx,cy);
+  rCtx.lineTo(cx+Math.cos(sweep)*R, cy+Math.sin(sweep)*R);
+  rCtx.strokeStyle='rgba(0,255,231,.5)'; rCtx.lineWidth=1.2; rCtx.stroke();
+  rCtx.restore();
+
+  // Player dot
+  rCtx.beginPath(); rCtx.arc(cx,cy,3,0,Math.PI*2);
+  rCtx.fillStyle='#fff'; rCtx.fill();
+  rCtx.beginPath(); rCtx.arc(cx,cy,5,0,Math.PI*2);
+  rCtx.strokeStyle='rgba(255,255,255,.4)'; rCtx.lineWidth=1; rCtx.stroke();
+
+  if (!userPos) { requestAnimationFrame(drawRadar); return; }
+
+  // Sort objects by distance, show nearest 3
+  const sorted = objects
+    .map(o => ({ o, d: haversineM(userPos.lat,userPos.lon,o.lat,o.lon) }))
+    .sort((a,b) => a.d-b.d)
+    .slice(0,3);
+
+  const maxRange = sorted.length > 0 ? Math.max(sorted[0].d * 2.5, 100) : 500;
+
+  sorted.forEach(({o, d}, idx) => {
+    const bear = bearingDeg(userPos.lat,userPos.lon,o.lat,o.lon);
+    const bearRad = (bear - 90) * Math.PI/180;
+    const norm = Math.min(d / maxRange, 0.88);
+    const bx = cx + Math.cos(bearRad) * R * norm;
+    const by = cy + Math.sin(bearRad) * R * norm;
+
+    const isFound = foundIds.includes(o.id);
+    const color = isFound ? '#00ffe7' : '#ff4ecd';
+
+    // Outer glow ring
+    rCtx.beginPath(); rCtx.arc(bx,by,8,0,Math.PI*2);
+    rCtx.fillStyle = isFound ? 'rgba(0,255,231,.12)' : 'rgba(255,78,205,.12)'; rCtx.fill();
+    // Inner blip dot
+    rCtx.beginPath(); rCtx.arc(bx,by,4,0,Math.PI*2);
+    rCtx.fillStyle=color; rCtx.fill();
+    rCtx.beginPath(); rCtx.arc(bx,by,4,0,Math.PI*2);
+    rCtx.strokeStyle='rgba(255,255,255,.4)'; rCtx.lineWidth=0.8; rCtx.stroke();
+
+    // Distance label — placed to avoid overlap with edge
+    const distTxt = fmtDist(d);
+    const nameTxt = o.name.length>8 ? o.name.slice(0,7)+'…' : o.name;
+    const labelX = bx > cx ? bx+10 : bx-10;
+    const labelAlign = bx > cx ? 'left' : 'right';
+
+    // Label background pill
+    rCtx.font='bold 7.5px monospace';
+    const tw = rCtx.measureText(distTxt).width;
+    const lx = bx > cx ? bx+8 : bx-8-tw-4;
+    rCtx.fillStyle='rgba(0,0,0,.6)';
+    rCtx.beginPath();
+    rCtx.roundRect ? rCtx.roundRect(lx-2, by-6, tw+8, 13, 3) :
+      (()=>{ rCtx.rect(lx-2,by-6,tw+8,13); })();
+    rCtx.fill();
+
+    rCtx.font='bold 7.5px monospace';
+    rCtx.fillStyle=color;
+    rCtx.textAlign=labelAlign; rCtx.textBaseline='middle';
+    rCtx.fillText(distTxt, labelX, by);
+
+    // Object name below
+    rCtx.font='6px sans-serif';
+    rCtx.fillStyle='rgba(255,255,255,.55)';
+    rCtx.fillText(nameTxt, labelX, by+9);
+  });
+
+  // Heading indicator (FOV wedge)
+  const hRad = (heading - 90) * Math.PI/180;
+  const fovRad = 30 * Math.PI/180;
+  rCtx.beginPath();
+  rCtx.moveTo(cx,cy);
+  rCtx.arc(cx,cy,R*0.88, hRad-fovRad, hRad+fovRad);
+  rCtx.closePath();
+  rCtx.fillStyle='rgba(255,255,255,.06)'; rCtx.fill();
+  rCtx.strokeStyle='rgba(255,255,255,.2)'; rCtx.lineWidth=1; rCtx.stroke();
+
+  requestAnimationFrame(drawRadar);
+}
+
+// ═══════════════════════════════════════════
+//  AR RENDER
+// ═══════════════════════════════════════════
 function renderAR() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if (!userPos) { animFrame=requestAnimationFrame(renderAR); return; }
 
-  if (!userPos) { animFrame = requestAnimationFrame(renderAR); return; }
-
-  const fovH = 60; // horizontal field of view estimate in degrees
-  const W = canvas.width;
-  const H = canvas.height;
-  let nearestDist = Infinity;
-  let nearestName = '';
+  const fovH=60, W=canvas.width, H=canvas.height;
+  let nearestDist=Infinity, nearestName='';
 
   objects.forEach(obj => {
-    const dist = haversineM(userPos.lat, userPos.lon, obj.lat, obj.lon);
-    const radius = obj.radius || 50;
+    const dist = haversineM(userPos.lat,userPos.lon,obj.lat,obj.lon);
+    const radius = obj.radius||50;
+    if (dist > radius*3) return;
 
-    if (dist > radius * 3) return; // don't render very far objects
+    const bearing = bearingDeg(userPos.lat,userPos.lon,obj.lat,obj.lon);
+    const ad = angleDiff(heading, bearing);
+    if (Math.abs(ad) > fovH*1.2) return;
 
-    const bearing = bearingDeg(userPos.lat, userPos.lon, obj.lat, obj.lon);
-    const angleDelta = angleDiff(heading, bearing);
-
-    // Is object within FOV?
-    if (Math.abs(angleDelta) > fovH * 1.2) return;
-
-    // Map angle to screen X
-    const screenX = W / 2 + (angleDelta / fovH) * (W / 2);
-
-    // Distance-based Y elevation: objects "on the ground" appear below center
-    // Closer = lower on screen, further = near horizon
-    const screenY = H * 0.55 + (dist / radius) * (H * 0.1);
-
-    // Scale: closer = bigger
-    const maxSize = Math.min(W, H) * 0.22;
-    const scale = Math.max(0.3, 1 - dist / (radius * 2));
-    const size = maxSize * scale;
-
-    // Opacity based on distance (fades at edge)
-    const proximityAlpha = Math.max(0.2, 1 - dist / (radius * 1.5));
-    const edgeFade = 1 - Math.min(1, Math.abs(angleDelta) / (fovH * 0.8));
-    const alpha = proximityAlpha * edgeFade;
+    const screenX = W/2 + (ad/fovH)*(W/2);
+    const screenY = H*0.52 + (dist/radius)*(H*0.1);
+    const maxSize = Math.min(W,H)*0.22;
+    const scale = Math.max(0.3, 1-dist/(radius*2));
+    const size = maxSize*scale;
+    const alpha = Math.max(0.2,1-dist/(radius*1.5)) * (1-Math.min(1,Math.abs(ad)/(fovH*0.8)));
 
     ctx.save();
     ctx.globalAlpha = alpha;
 
-    // Glow ring
-    const gradient = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, size * 0.8);
-    gradient.addColorStop(0, 'rgba(0,255,231,0.15)');
-    gradient.addColorStop(1, 'rgba(0,255,231,0)');
-    ctx.beginPath();
-    ctx.arc(screenX, screenY, size * 0.8, 0, Math.PI * 2);
-    ctx.fillStyle = gradient;
-    ctx.fill();
+    // Glow
+    const gl = ctx.createRadialGradient(screenX,screenY,0,screenX,screenY,size*0.9);
+    gl.addColorStop(0,'rgba(0,255,231,0.12)'); gl.addColorStop(1,'rgba(0,255,231,0)');
+    ctx.beginPath(); ctx.arc(screenX,screenY,size*0.9,0,Math.PI*2);
+    ctx.fillStyle=gl; ctx.fill();
 
-    // Image or emoji fallback
-    if (obj.imgData && imgCache[obj.id] && imgCache[obj.id].complete) {
-      const half = size / 2;
-      // Clip to rounded rect
-      ctx.beginPath();
-      roundRect(ctx, screenX - half, screenY - half, size, size, size * 0.18);
+    const isFound = foundIds.includes(obj.id);
+
+    if (obj.imgData && imgCache[obj.id]?.complete) {
+      const half=size/2;
+      roundRect(ctx,screenX-half,screenY-half,size,size,size*0.18);
       ctx.clip();
-      ctx.drawImage(imgCache[obj.id], screenX - half, screenY - half, size, size);
-      // Border
-      ctx.restore();
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.strokeStyle = dist < radius ? '#00ffe7' : 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = dist < radius ? 3 : 1.5;
-      ctx.beginPath();
-      roundRect(ctx, screenX - half, screenY - half, size, size, size * 0.18);
-      ctx.stroke();
+      // Greyscale if already found
+      if (isFound) { ctx.filter='grayscale(60%) brightness(0.8)'; }
+      ctx.drawImage(imgCache[obj.id],screenX-half,screenY-half,size,size);
+      ctx.filter='none';
+      ctx.restore(); ctx.save(); ctx.globalAlpha=alpha;
+      ctx.strokeStyle = isFound ? 'rgba(0,255,231,.5)' : (dist<radius?'#00ffe7':'rgba(255,255,255,0.5)');
+      ctx.lineWidth = dist<radius?3:1.5;
+      roundRect(ctx,screenX-half,screenY-half,size,size,size*0.18); ctx.stroke();
+      // Found checkmark
+      if (isFound) {
+        ctx.font=`bold ${size*0.3}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillStyle='rgba(0,255,231,.8)'; ctx.fillText('✓',screenX,screenY);
+      }
     } else {
-      ctx.font = `${size * 0.7}px serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('📦', screenX, screenY);
+      ctx.font=`${size*0.7}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('📦',screenX,screenY);
     }
 
-    // Name label
-    ctx.restore();
-    ctx.save();
-    ctx.globalAlpha = alpha * 0.9;
-    ctx.font = `bold ${Math.max(11, size * 0.18)}px Segoe UI, system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillStyle = '#fff';
-    ctx.shadowColor = 'rgba(0,0,0,.8)';
-    ctx.shadowBlur = 6;
-    ctx.fillText(obj.name, screenX, screenY + size / 2 + 6);
-
-    // Distance label
-    ctx.font = `${Math.max(10, size * 0.14)}px Segoe UI, sans-serif`;
-    ctx.fillStyle = dist < radius ? '#00ffe7' : 'rgba(255,255,255,0.6)';
-    const distLabel = dist < 1000 ? `${Math.round(dist)}m` : `${(dist/1000).toFixed(1)}km`;
-    ctx.fillText(distLabel, screenX, screenY + size / 2 + 24);
-
+    ctx.restore(); ctx.save(); ctx.globalAlpha=alpha*0.9;
+    ctx.font=`bold ${Math.max(11,size*0.17)}px Segoe UI,sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='top';
+    ctx.fillStyle='#fff'; ctx.shadowColor='rgba(0,0,0,.8)'; ctx.shadowBlur=6;
+    ctx.fillText(obj.name,screenX,screenY+size/2+5);
+    ctx.font=`${Math.max(10,size*0.13)}px Segoe UI,sans-serif`;
+    ctx.fillStyle = dist<radius?'#00ffe7':'rgba(255,255,255,0.6)';
+    ctx.fillText(fmtDist(dist),screenX,screenY+size/2+22);
     ctx.restore();
 
-    // Track nearest
-    if (dist < nearestDist) { nearestDist = dist; nearestName = obj.name; }
+    if (dist<nearestDist) { nearestDist=dist; nearestName=obj.name; }
 
-    // FOUND trigger
-    if (dist < radius * 0.3 && Math.abs(angleDelta) < 15) {
-      const now = Date.now();
-      if (!foundCooldown[obj.id] || now - foundCooldown[obj.id] > 15000) {
-        foundCooldown[obj.id] = now;
-        triggerFound(obj, dist);
+    // Found trigger
+    if (dist<radius*0.3 && Math.abs(ad)<15 && !foundIds.includes(obj.id)) {
+      const now=Date.now();
+      if (!foundCooldown[obj.id]||now-foundCooldown[obj.id]>15000) {
+        foundCooldown[obj.id]=now;
+        markFound(obj,dist);
       }
     }
   });
 
-  // Update dist bar
-  if (objects.length === 0) {
-    document.getElementById('dist-bar').textContent = '⚙️ Objekte über Einstellungen hinzufügen';
-  } else if (nearestDist < Infinity) {
-    const d = nearestDist < 1000 ? `${Math.round(nearestDist)}m` : `${(nearestDist/1000).toFixed(1)}km`;
-    document.getElementById('dist-bar').textContent = `📍 Nächstes: ${nearestName} · ${d}`;
+  // Dist bar
+  if (objects.length===0) {
+    document.getElementById('dist-bar').textContent='⚙️ Objekte über Einstellungen hinzufügen';
+  } else if (nearestDist<Infinity) {
+    document.getElementById('dist-bar').textContent=`📍 Nächstes: ${nearestName} · ${fmtDist(nearestDist)}`;
   }
 
-  animFrame = requestAnimationFrame(renderAR);
+  animFrame=requestAnimationFrame(renderAR);
 }
 
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
-}
-
-// ── FOUND POPUP ──
-function triggerFound(obj, dist) {
-  const flash = document.getElementById('found-flash');
+// ═══════════════════════════════════════════
+//  FOUND LOGIC
+// ═══════════════════════════════════════════
+function markFound(obj, dist) {
+  if (!foundIds.includes(obj.id)) {
+    foundIds.push(obj.id);
+    saveFound();
+    updateFoundCount();
+  }
+  // Piece number = position among found
+  const pieceNum = foundIds.indexOf(obj.id)+1;
   document.getElementById('found-name').textContent = obj.name;
-  document.getElementById('found-dist').textContent = `Du bist ${Math.round(dist)}m entfernt`;
-  const img = document.getElementById('found-img');
-  const wrap = document.getElementById('found-img-wrap');
-  if (obj.imgData) { img.src = obj.imgData; wrap.style.display = 'block'; }
-  else { wrap.style.display = 'none'; }
-  flash.classList.add('show');
-  // Vibrate
-  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  document.getElementById('found-dist').textContent = `Du warst ${Math.round(dist)}m entfernt`;
+  document.getElementById('found-piece-num').textContent = pieceNum;
+  const img=document.getElementById('found-img'), wrap=document.getElementById('found-img-wrap');
+  if (obj.imgData) { img.src=obj.imgData; wrap.style.display='block'; }
+  else { wrap.style.display='none'; }
+  document.getElementById('found-flash').classList.add('show');
+  if (navigator.vibrate) navigator.vibrate([200,100,200]);
 }
-document.getElementById('found-close-btn').addEventListener('click', () => {
+
+document.getElementById('found-close-btn').addEventListener('click',()=>{
   document.getElementById('found-flash').classList.remove('show');
 });
+document.getElementById('found-gallery-btn').addEventListener('click',()=>{
+  document.getElementById('found-flash').classList.remove('show');
+  openGallery();
+});
 
-// ── GPS ──
-function startGPS() {
-  navigator.geolocation.watchPosition(pos => {
-    userPos = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-    document.getElementById('gps-label').textContent =
-      `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
-    updateObjDistances();
-  }, err => {
-    document.getElementById('gps-label').textContent = 'GPS Fehler';
-  }, { enableHighAccuracy: true, maximumAge: 1000 });
+function updateFoundCount() {
+  document.getElementById('found-count').textContent = foundIds.filter(id=>objects.find(o=>o.id===id)).length;
+  document.getElementById('obj-count').textContent = objects.length;
 }
 
-// ── COMPASS ──
-function startCompass() {
-  // Try DeviceOrientationEvent (absolute)
-  const handler = e => {
-    let h = null;
-    if (e.webkitCompassHeading !== undefined) {
-      h = e.webkitCompassHeading; // iOS
-    } else if (e.absolute && e.alpha !== null) {
-      h = (360 - e.alpha) % 360;
-    } else if (e.alpha !== null) {
-      h = (360 - e.alpha) % 360;
-    }
-    if (h !== null) {
-      heading = h;
-      document.getElementById('compass-needle').style.transform = `rotate(${h}deg)`;
-    }
-  };
+// ═══════════════════════════════════════════
+//  MATH GATE
+// ═══════════════════════════════════════════
+let mathAnswer = 0;
+let pendingAction = null; // function to call after success
 
-  if (typeof DeviceOrientationEvent !== 'undefined' &&
-      typeof DeviceOrientationEvent.requestPermission === 'function') {
-    // iOS 13+
-    DeviceOrientationEvent.requestPermission().then(s => {
-      if (s === 'granted') window.addEventListener('deviceorientationabsolute', handler, true) || window.addEventListener('deviceorientation', handler, true);
+function openMathGate(onSuccess) {
+  pendingAction = onSuccess;
+  const a = Math.floor(Math.random()*9)+2;
+  const b = Math.floor(Math.random()*9)+2;
+  mathAnswer = a*b;
+  document.getElementById('math-question').textContent = `${a} × ${b} = ?`;
+  document.getElementById('math-input').value = '';
+  document.getElementById('math-error').textContent = '';
+  document.getElementById('math-gate').classList.add('show');
+  setTimeout(()=>document.getElementById('math-input').focus(), 100);
+}
+
+document.getElementById('gate-confirm-btn').addEventListener('click', ()=>{
+  const val = parseInt(document.getElementById('math-input').value);
+  if (val === mathAnswer) {
+    document.getElementById('math-gate').classList.remove('show');
+    if (pendingAction) pendingAction();
+  } else {
+    document.getElementById('math-error').textContent = '❌ Falsch – versuch es nochmal!';
+    document.getElementById('math-input').value='';
+    // New question after wrong answer
+    const a=Math.floor(Math.random()*9)+2, b=Math.floor(Math.random()*9)+2;
+    mathAnswer=a*b;
+    setTimeout(()=>{ document.getElementById('math-question').textContent=`${a} × ${b} = ?`; },600);
+  }
+});
+document.getElementById('math-input').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('gate-confirm-btn').click(); });
+document.getElementById('gate-cancel-btn').addEventListener('click', ()=>{
+  document.getElementById('math-gate').classList.remove('show');
+});
+
+// ═══════════════════════════════════════════
+//  GALLERY
+// ═══════════════════════════════════════════
+function openGallery() {
+  renderGallery();
+  document.getElementById('gallery').classList.remove('hidden');
+}
+document.getElementById('open-gallery-btn').addEventListener('click', openGallery);
+document.getElementById('close-gallery-btn').addEventListener('click',()=>{
+  document.getElementById('gallery').classList.add('hidden');
+});
+
+function renderGallery() {
+  const total = objects.length;
+  const fnd = foundIds.filter(id=>objects.find(o=>o.id===id)).length;
+  const pct = total>0 ? Math.round(fnd/total*100) : 0;
+  document.getElementById('stat-found').textContent = fnd;
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-pct').textContent = pct+'%';
+
+  // Progress bar
+  document.getElementById('progress-bar-fill').style.width = pct + '%';
+  document.getElementById('progress-bar-label').textContent = `${fnd} von ${total} gefunden`;
+
+  // Puzzle pieces
+  const piecesEl = document.getElementById('puzzle-pieces');
+  piecesEl.innerHTML='';
+  const foundObjs = foundIds.map(id=>objects.find(o=>o.id===id)).filter(Boolean);
+  if (foundObjs.length===0) {
+    piecesEl.innerHTML='<div class="puzzle-empty">Noch kein Puzzlestück gefunden.</div>';
+  } else {
+    foundObjs.forEach((obj,i)=>{
+      const p=document.createElement('div'); p.className='puzzle-piece';
+      if (obj.imgData) {
+        p.innerHTML=`<img src="${obj.imgData}" alt="${obj.name}"><div class="puzzle-piece-num">#${i+1}</div>`;
+      } else {
+        p.innerHTML=`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:24px;">📦</div><div class="puzzle-piece-num">#${i+1}</div>`;
+      }
+      p.title=obj.name;
+      p.addEventListener('click', () => showStatus(`🧩 #${i+1}: ${obj.name}`));
+      piecesEl.appendChild(p);
+    });
+  }
+
+  // Gallery grid
+  const grid = document.getElementById('gallery-grid');
+  grid.innerHTML='';
+  if (objects.length===0) {
+    grid.innerHTML='<div class="gallery-empty" style="grid-column:1/-1">Noch keine Objekte angelegt.</div>';
+    return;
+  }
+  objects.forEach((obj,i)=>{
+    const isFound=foundIds.includes(obj.id);
+    const card=document.createElement('div');
+    card.className='gal-card '+(isFound?'found-card':'locked-card');
+    const pieceNum = isFound ? foundIds.indexOf(obj.id)+1 : null;
+    card.innerHTML=`
+      <div class="gal-img-wrap">
+        ${obj.imgData?`<img src="${obj.imgData}" alt="${obj.name}">`:'<div style="font-size:40px;">📦</div>'}
+        ${!isFound?`<div class="gal-lock-overlay"><div class="gal-lock-icon">🔒</div><div class="gal-lock-text">Noch nicht gefunden</div></div>`:''}
+        ${isFound?`<div class="puzzle-badge">#${pieceNum}</div>`:''}
+      </div>
+      <div class="gal-info">
+        <div class="gal-name">${isFound?obj.name:'???'}</div>
+        <div class="gal-meta ${isFound?'found-meta':''}">${isFound?`✓ Gefunden · Stück #${pieceNum}`:`${fmtDist(userPos?haversineM(userPos.lat,userPos.lon,obj.lat,obj.lon):0)} entfernt`}</div>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+// ═══════════════════════════════════════════
+//  GPS
+// ═══════════════════════════════════════════
+function startGPS() {
+  navigator.geolocation.watchPosition(pos=>{
+    userPos={lat:pos.coords.latitude,lon:pos.coords.longitude};
+    document.getElementById('gps-label').textContent=`${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
+    updateObjDistances();
+  }, ()=>{ document.getElementById('gps-label').textContent='GPS Fehler'; },
+  {enableHighAccuracy:true,maximumAge:1000});
+}
+
+// ═══════════════════════════════════════════
+//  COMPASS
+// ═══════════════════════════════════════════
+function startCompass() {
+  const handler = e => {
+    let h=null;
+    if (e.webkitCompassHeading!==undefined) h=e.webkitCompassHeading;
+    else if (e.absolute&&e.alpha!==null) h=(360-e.alpha)%360;
+    else if (e.alpha!==null) h=(360-e.alpha)%360;
+    if (h!==null) heading=h;
+  };
+  if (typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function') {
+    DeviceOrientationEvent.requestPermission().then(s=>{
+      if(s==='granted'){ window.addEventListener('deviceorientationabsolute',handler,true); window.addEventListener('deviceorientation',handler,true); }
     });
   } else {
-    window.addEventListener('deviceorientationabsolute', handler, true);
-    window.addEventListener('deviceorientation', handler, true);
+    window.addEventListener('deviceorientationabsolute',handler,true);
+    window.addEventListener('deviceorientation',handler,true);
   }
 }
 
-// ── CAMERA ──
+// ═══════════════════════════════════════════
+//  CAMERA
+// ═══════════════════════════════════════════
 async function startCamera() {
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
-      audio: false
-    });
-    video.srcObject = stream;
-  } catch (e) {
-    showStatus('⚠️ Kamera konnte nicht gestartet werden');
-  }
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},audio:false});
+    video.srcObject=stream;
+  } catch(e) { showStatus('⚠️ Kamera konnte nicht gestartet werden'); }
 }
 
-// ── INIT ──
-document.getElementById('start-btn').addEventListener('click', async () => {
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+document.getElementById('start-btn').addEventListener('click',async()=>{
   await startCamera();
   startGPS();
   startCompass();
-
   document.getElementById('perm-screen').classList.add('hidden');
   document.getElementById('ar-screen').classList.remove('hidden');
-
-  objects.forEach(o => loadImg(o));
-  renderObjList();
-  updateObjCount();
+  objects.forEach(o=>loadImg(o));
+  updateFoundCount();
   renderAR();
+  drawRadar();
 });
 
-// ── MANAGER ──
-document.getElementById('open-manager-btn').addEventListener('click', () => {
-  document.getElementById('manager').classList.remove('hidden');
-  renderObjList();
+// ═══════════════════════════════════════════
+//  MANAGER (with math gate)
+// ═══════════════════════════════════════════
+document.getElementById('open-manager-btn').addEventListener('click',()=>{
+  openMathGate(()=>{
+    renderObjList();
+    document.getElementById('manager').classList.remove('hidden');
+  });
 });
-document.getElementById('close-manager-btn').addEventListener('click', () => {
+document.getElementById('close-manager-btn').addEventListener('click',()=>{
   document.getElementById('manager').classList.add('hidden');
 });
 
 function updateObjCount() {
-  document.getElementById('obj-count').textContent = objects.length;
+  document.getElementById('obj-count').textContent=objects.length;
+  document.getElementById('found-count').textContent=foundIds.filter(id=>objects.find(o=>o.id===id)).length;
 }
 
 function updateObjDistances() {
-  document.querySelectorAll('.obj-card-dist').forEach(el => {
-    const id = el.closest('.obj-card')?.dataset.id;
-    const obj = objects.find(o => o.id === id);
-    if (obj && userPos) {
-      const d = haversineM(userPos.lat, userPos.lon, obj.lat, obj.lon);
-      el.textContent = d < 1000 ? `📍 ${Math.round(d)}m entfernt` : `📍 ${(d/1000).toFixed(1)}km entfernt`;
-    }
+  document.querySelectorAll('.obj-card-dist').forEach(el=>{
+    const id=el.closest('.obj-card')?.dataset.id;
+    const obj=objects.find(o=>o.id===id);
+    if(obj&&userPos){ const d=haversineM(userPos.lat,userPos.lon,obj.lat,obj.lon); el.textContent=`📍 ${fmtDist(d)} entfernt`; }
   });
 }
 
 function renderObjList() {
-  const list = document.getElementById('object-list');
-  list.innerHTML = '';
-  const hint = document.getElementById('no-obj-hint');
-  if (objects.length === 0) {
-    hint.style.display = 'block';
-    list.appendChild(hint);
-    return;
-  }
-  objects.forEach(obj => {
-    const card = document.createElement('div');
-    card.className = 'obj-card';
-    card.dataset.id = obj.id;
-    const dist = userPos ? haversineM(userPos.lat, userPos.lon, obj.lat, obj.lon) : null;
-    const distText = dist !== null
-      ? (dist < 1000 ? `📍 ${Math.round(dist)}m entfernt` : `📍 ${(dist/1000).toFixed(1)}km entfernt`)
-      : '';
-    card.innerHTML = `
-      <div class="obj-card-img">${obj.imgData ? `<img src="${obj.imgData}" alt="">` : '📦'}</div>
+  const list=document.getElementById('object-list');
+  list.innerHTML='';
+  if(objects.length===0){ list.innerHTML='<div class="no-items-hint">Noch keine Objekte. Füge unten eines hinzu.</div>'; return; }
+  objects.forEach(obj=>{
+    const card=document.createElement('div'); card.className='obj-card'; card.dataset.id=obj.id;
+    const dist=userPos?haversineM(userPos.lat,userPos.lon,obj.lat,obj.lon):null;
+    card.innerHTML=`
+      <div class="obj-card-img">${obj.imgData?`<img src="${obj.imgData}" alt="">`:'📦'}</div>
       <div class="obj-card-info">
         <div class="obj-card-name">${obj.name}</div>
         <div class="obj-card-coords">${obj.lat.toFixed(6)}, ${obj.lon.toFixed(6)}</div>
-        <div class="obj-card-dist">${distText}</div>
+        <div class="obj-card-dist">${dist!==null?`📍 ${fmtDist(dist)} entfernt`:''}</div>
       </div>
-      <button class="del-btn" data-id="${obj.id}">🗑</button>
-    `;
-    card.querySelector('.del-btn').addEventListener('click', () => {
-      objects = objects.filter(o => o.id !== obj.id);
-      save();
-      renderObjList();
-      updateObjCount();
+      <button class="del-btn" data-id="${obj.id}">🗑</button>`;
+    card.querySelector('.del-btn').addEventListener('click',()=>{
+      objects=objects.filter(o=>o.id!==obj.id);
+      foundIds=foundIds.filter(id=>id!==obj.id);
+      save(); saveFound(); renderObjList(); updateFoundCount();
       showStatus('Objekt gelöscht');
     });
     list.appendChild(card);
   });
 }
 
-// GPS auto fill
-document.getElementById('gps-auto-btn').addEventListener('click', () => {
-  if (userPos) {
-    document.getElementById('inp-lat').value = userPos.lat.toFixed(6);
-    document.getElementById('inp-lon').value = userPos.lon.toFixed(6);
-    showStatus('📍 Aktuelle Position übernommen');
-  } else {
-    showStatus('⚠️ GPS noch nicht verfügbar');
-  }
+document.getElementById('gps-auto-btn').addEventListener('click',()=>{
+  if(userPos){ document.getElementById('inp-lat').value=userPos.lat.toFixed(6); document.getElementById('inp-lon').value=userPos.lon.toFixed(6); showStatus('📍 Aktuelle Position übernommen'); }
+  else showStatus('⚠️ GPS noch nicht verfügbar');
 });
 
-// Image picker
-let selectedImgData = null;
-document.getElementById('file-input').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    selectedImgData = ev.target.result;
-    const prev = document.getElementById('img-preview');
-    prev.src = selectedImgData;
-    prev.style.display = 'block';
-    document.querySelector('#img-preview-wrap .img-placeholder').style.display = 'none';
-    document.querySelector('#img-preview-wrap .img-hint').style.display = 'none';
+let selectedImgData=null;
+document.getElementById('file-input').addEventListener('change',e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    selectedImgData=ev.target.result;
+    const prev=document.getElementById('img-preview');
+    prev.src=selectedImgData; prev.style.display='block';
+    document.querySelector('#img-preview-wrap .img-placeholder').style.display='none';
+    document.querySelector('#img-preview-wrap .img-hint').style.display='none';
   };
   reader.readAsDataURL(file);
 });
 
-// Add object
-document.getElementById('add-btn').addEventListener('click', () => {
-  const name = document.getElementById('inp-name').value.trim();
-  const lat = parseFloat(document.getElementById('inp-lat').value);
-  const lon = parseFloat(document.getElementById('inp-lon').value);
-  const radius = parseFloat(document.getElementById('inp-radius').value) || 50;
-
-  if (!name) { showStatus('⚠️ Bitte einen Namen eingeben'); return; }
-  if (isNaN(lat) || isNaN(lon)) { showStatus('⚠️ Bitte gültige Koordinaten eingeben'); return; }
-  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) { showStatus('⚠️ Koordinaten außerhalb des gültigen Bereichs'); return; }
-
-  const obj = { id: Date.now().toString(), name, lat, lon, radius, imgData: selectedImgData };
-  objects.push(obj);
-  loadImg(obj);
-  save();
-  renderObjList();
-  updateObjCount();
-
-  // Reset form
-  document.getElementById('inp-name').value = '';
-  document.getElementById('inp-lat').value = '';
-  document.getElementById('inp-lon').value = '';
-  document.getElementById('inp-radius').value = '50';
-  selectedImgData = null;
-  document.getElementById('img-preview').style.display = 'none';
-  document.getElementById('img-preview').src = '';
-  document.querySelector('#img-preview-wrap .img-placeholder').style.display = 'block';
-  document.querySelector('#img-preview-wrap .img-hint').style.display = 'block';
-  document.getElementById('file-input').value = '';
-
+document.getElementById('add-btn').addEventListener('click',()=>{
+  const name=document.getElementById('inp-name').value.trim();
+  const lat=parseFloat(document.getElementById('inp-lat').value);
+  const lon=parseFloat(document.getElementById('inp-lon').value);
+  const radius=parseFloat(document.getElementById('inp-radius').value)||50;
+  if(!name){showStatus('⚠️ Bitte Namen eingeben');return;}
+  if(isNaN(lat)||isNaN(lon)){showStatus('⚠️ Bitte gültige Koordinaten eingeben');return;}
+  const obj={id:Date.now().toString(),name,lat,lon,radius,imgData:selectedImgData};
+  objects.push(obj); loadImg(obj); save(); renderObjList(); updateFoundCount();
+  document.getElementById('inp-name').value='';
+  document.getElementById('inp-lat').value='';
+  document.getElementById('inp-lon').value='';
+  document.getElementById('inp-radius').value='50';
+  selectedImgData=null;
+  document.getElementById('img-preview').style.display='none';
+  document.getElementById('img-preview').src='';
+  document.querySelector('#img-preview-wrap .img-placeholder').style.display='block';
+  document.querySelector('#img-preview-wrap .img-hint').style.display='block';
+  document.getElementById('file-input').value='';
   showStatus(`✅ "${name}" versteckt!`);
 });
 </script>
