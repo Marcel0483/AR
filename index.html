@@ -192,6 +192,20 @@
       margin:0 20px 40px; background:rgba(255,255,255,.03);
       border:1px solid rgba(0,255,231,.12); border-radius:var(--radius); padding:18px;
     }
+
+    /* ── EXPORT / IMPORT BAR ── */
+    #io-bar {
+      display:flex; gap:10px; padding:14px 20px 4px;
+    }
+    #import-file { display:none; }
+    .io-btn {
+      flex:1; display:flex; align-items:center; justify-content:center; gap:7px;
+      background:rgba(255,255,255,.05); border:1px solid rgba(0,255,231,.22);
+      border-radius:12px; color:#fff; font-size:13px; font-weight:600;
+      padding:11px; cursor:pointer; transition:background .2s; font-family:var(--font);
+    }
+    .io-btn:active { background:rgba(0,255,231,.15); }
+    .io-btn span { font-size:15px; }
     .form-title { font-size:14px; font-weight:700; color:var(--neon); letter-spacing:.06em; text-transform:uppercase; margin-bottom:14px; }
     .form-row { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
     .form-row label { font-size:12px; color:rgba(255,255,255,.5); }
@@ -258,8 +272,8 @@
     .stat-lbl { font-size:10px; color:rgba(255,255,255,.4); margin-top:2px; }
 
     #gallery-grid {
-      padding:16px 20px 40px;
-      display:grid; grid-template-columns:1fr 1fr; gap:12px;
+      padding:12px 20px 40px;
+      display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;
     }
     .gal-card {
       background:rgba(255,255,255,.04); border-radius:var(--radius);
@@ -275,7 +289,7 @@
       0%,100% { box-shadow: 0 0 8px rgba(0,255,231,.1); }
       50% { box-shadow: 0 0 18px rgba(0,255,231,.25); }
     }
-    .gal-card.locked-card { border-color:rgba(255,255,255,.06); opacity:.65; }
+    .gal-card.locked-card { border-color:rgba(255,255,255,.08); }
 
     .gal-img-wrap {
       width:100%; aspect-ratio:1/1; overflow:hidden; position:relative;
@@ -284,11 +298,28 @@
     .gal-img-wrap img { width:100%; height:100%; object-fit:cover; }
     .gal-lock-overlay {
       position:absolute; inset:0;
-      background:rgba(0,0,0,.7); backdrop-filter:blur(6px);
-      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+      background:#000;
+      display:flex; align-items:center; justify-content:center;
     }
-    .gal-lock-icon { font-size:32px; }
-    .gal-lock-text { font-size:11px; color:rgba(255,255,255,.5); text-align:center; padding:0 8px; }
+    .gal-lock-icon { font-size:34px; opacity:.85; }
+
+    /* ── COLUMN SWITCHER ── */
+    #col-switcher {
+      display:flex; align-items:center; gap:6px;
+      padding:12px 20px 0;
+    }
+    .col-switch-label { font-size:11px; color:rgba(255,255,255,.4); margin-right:2px; }
+    .col-btn {
+      width:34px; height:30px; border-radius:9px;
+      border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.04);
+      color:rgba(255,255,255,.6); font-size:12px; font-weight:700;
+      cursor:pointer; transition:all .18s;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .col-btn.active {
+      border-color:var(--neon); color:var(--neon);
+      background:rgba(0,255,231,.1);
+    }
 
     /* puzzle piece overlay on found cards */
     .puzzle-badge {
@@ -447,6 +478,11 @@
     <div class="panel-title">Objekte <span>verwalten</span></div>
     <button class="close-btn" id="close-manager-btn">✕</button>
   </div>
+  <div id="io-bar">
+    <button class="io-btn" id="export-btn"><span>⬆️</span> Exportieren</button>
+    <button class="io-btn" id="import-btn"><span>⬇️</span> Importieren</button>
+    <input type="file" id="import-file" accept="application/json,.json">
+  </div>
   <div id="object-list"></div>
   <div id="add-form">
     <div class="form-title">+ Neues Objekt</div>
@@ -500,6 +536,12 @@
     <div class="puzzle-title">🧩 Puzzlestücke</div>
     <div id="puzzle-pieces"></div>
   </div>
+  <div id="col-switcher">
+    <span class="col-switch-label">Spalten</span>
+    <button class="col-btn" data-cols="2">2</button>
+    <button class="col-btn active" data-cols="3">3</button>
+    <button class="col-btn" data-cols="4">4</button>
+  </div>
   <div id="gallery-grid"></div>
 </div>
 
@@ -526,7 +568,19 @@ const video      = document.getElementById('video');
 // ═══════════════════════════════════════════
 //  PERSISTENCE
 // ═══════════════════════════════════════════
-function save()      { localStorage.setItem('ar_objects', JSON.stringify(objects)); }
+function save() {
+  try {
+    localStorage.setItem('ar_objects', JSON.stringify(objects));
+    return true;
+  } catch (e) {
+    if (e.name === 'QuotaExceededError' || /quota/i.test(e.message || '')) {
+      showStatus('⚠️ Speicher voll – Bild zu groß oder zu viele Objekte', 3500);
+    } else {
+      showStatus('⚠️ Speichern fehlgeschlagen', 3000);
+    }
+    return false;
+  }
+}
 function saveFound() { localStorage.setItem('ar_found',   JSON.stringify(foundIds)); }
 
 // ═══════════════════════════════════════════
@@ -867,6 +921,21 @@ document.getElementById('close-gallery-btn').addEventListener('click',()=>{
   document.getElementById('gallery').classList.add('hidden');
 });
 
+// Column switcher (2 / 3 / 4 tiles per row)
+let galleryCols = parseInt(localStorage.getItem('ar_gallery_cols') || '3');
+function applyGalleryCols(cols) {
+  galleryCols = cols;
+  localStorage.setItem('ar_gallery_cols', String(cols));
+  document.getElementById('gallery-grid').style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  document.querySelectorAll('.col-btn').forEach(b =>
+    b.classList.toggle('active', parseInt(b.dataset.cols) === cols)
+  );
+}
+document.querySelectorAll('.col-btn').forEach(btn => {
+  btn.addEventListener('click', () => applyGalleryCols(parseInt(btn.dataset.cols)));
+});
+applyGalleryCols(galleryCols); // restore saved choice on load
+
 function renderGallery() {
   const total = objects.length;
   const fnd = foundIds.filter(id=>objects.find(o=>o.id===id)).length;
@@ -911,16 +980,26 @@ function renderGallery() {
     const card=document.createElement('div');
     card.className='gal-card '+(isFound?'found-card':'locked-card');
     const pieceNum = isFound ? foundIds.indexOf(obj.id)+1 : null;
-    card.innerHTML=`
-      <div class="gal-img-wrap">
-        ${obj.imgData?`<img src="${obj.imgData}" alt="${obj.name}">`:'<div style="font-size:40px;">📦</div>'}
-        ${!isFound?`<div class="gal-lock-overlay"><div class="gal-lock-icon">🔒</div><div class="gal-lock-text">Noch nicht gefunden</div></div>`:''}
-        ${isFound?`<div class="puzzle-badge">#${pieceNum}</div>`:''}
-      </div>
-      <div class="gal-info">
-        <div class="gal-name">${isFound?obj.name:'???'}</div>
-        <div class="gal-meta ${isFound?'found-meta':''}">${isFound?`✓ Gefunden · Stück #${pieceNum}`:`${fmtDist(userPos?haversineM(userPos.lat,userPos.lon,obj.lat,obj.lon):0)} entfernt`}</div>
-      </div>`;
+    if (isFound) {
+      card.innerHTML=`
+        <div class="gal-img-wrap">
+          ${obj.imgData?`<img src="${obj.imgData}" alt="${obj.name}">`:'<div style="font-size:40px;">📦</div>'}
+          <div class="puzzle-badge">#${pieceNum}</div>
+        </div>
+        <div class="gal-info">
+          <div class="gal-name">${obj.name}</div>
+          <div class="gal-meta found-meta">✓ Gefunden · Stück #${pieceNum}</div>
+        </div>`;
+    } else {
+      card.innerHTML=`
+        <div class="gal-img-wrap">
+          <div class="gal-lock-overlay"><div class="gal-lock-icon">🔒</div></div>
+        </div>
+        <div class="gal-info">
+          <div class="gal-name">???</div>
+          <div class="gal-meta">${fmtDist(userPos?haversineM(userPos.lat,userPos.lon,obj.lat,obj.lon):0)} entfernt</div>
+        </div>`;
+    }
     grid.appendChild(card);
   });
 }
@@ -1040,11 +1119,32 @@ document.getElementById('gps-auto-btn').addEventListener('click',()=>{
 });
 
 let selectedImgData=null;
+// Resize + compress an image data URL to keep localStorage small.
+// Max dimension 512px, JPEG quality 0.7 → typically 20–50 KB per image.
+function compressImage(dataUrl, maxDim = 512, quality = 0.7) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > height && width > maxDim) { height = height * maxDim / width; width = maxDim; }
+      else if (height > maxDim) { width = width * maxDim / height; height = maxDim; }
+      const cv = document.createElement('canvas');
+      cv.width = width; cv.height = height;
+      const c = cv.getContext('2d');
+      c.drawImage(img, 0, 0, width, height);
+      resolve(cv.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl); // fallback: keep original
+    img.src = dataUrl;
+  });
+}
+
 document.getElementById('file-input').addEventListener('change',e=>{
   const file=e.target.files[0]; if(!file) return;
   const reader=new FileReader();
-  reader.onload=ev=>{
-    selectedImgData=ev.target.result;
+  reader.onload=async ev=>{
+    showStatus('🗜️ Bild wird optimiert…', 1500);
+    selectedImgData = await compressImage(ev.target.result);
     const prev=document.getElementById('img-preview');
     prev.src=selectedImgData; prev.style.display='block';
     document.querySelector('#img-preview-wrap .img-placeholder').style.display='none';
@@ -1060,8 +1160,17 @@ document.getElementById('add-btn').addEventListener('click',()=>{
   const radius=parseFloat(document.getElementById('inp-radius').value)||50;
   if(!name){showStatus('⚠️ Bitte Namen eingeben');return;}
   if(isNaN(lat)||isNaN(lon)){showStatus('⚠️ Bitte gültige Koordinaten eingeben');return;}
-  const obj={id:Date.now().toString(),name,lat,lon,radius,imgData:selectedImgData};
-  objects.push(obj); loadImg(obj); save(); renderObjList(); updateFoundCount();
+
+  const obj={id:Date.now().toString()+Math.random().toString(36).slice(2,6),name,lat,lon,radius,imgData:selectedImgData};
+  objects.push(obj);
+
+  // Only keep the object if it actually saved to storage
+  if(!save()){
+    objects.pop();               // roll back in-memory add
+    return;                      // keep form filled so user can retry / remove image
+  }
+
+  loadImg(obj); renderObjList(); updateFoundCount();
   document.getElementById('inp-name').value='';
   document.getElementById('inp-lat').value='';
   document.getElementById('inp-lon').value='';
@@ -1073,6 +1182,88 @@ document.getElementById('add-btn').addEventListener('click',()=>{
   document.querySelector('#img-preview-wrap .img-hint').style.display='block';
   document.getElementById('file-input').value='';
   showStatus(`✅ "${name}" versteckt!`);
+});
+
+// ═══════════════════════════════════════════
+//  EXPORT / IMPORT
+// ═══════════════════════════════════════════
+document.getElementById('export-btn').addEventListener('click', () => {
+  if (objects.length === 0) { showStatus('⚠️ Keine Objekte zum Exportieren'); return; }
+  const payload = {
+    app: 'ar-hunt',
+    version: 1,
+    exported: new Date().toISOString(),
+    objects: objects
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `ar-hunt-objekte-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showStatus(`⬆️ ${objects.length} Objekte exportiert`);
+});
+
+document.getElementById('import-btn').addEventListener('click', () => {
+  document.getElementById('import-file').click();
+});
+
+document.getElementById('import-file').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    let data;
+    try { data = JSON.parse(ev.target.result); }
+    catch { showStatus('❌ Datei ist kein gültiges JSON', 3000); return; }
+
+    const imported = Array.isArray(data) ? data : data.objects;
+    if (!Array.isArray(imported)) { showStatus('❌ Keine Objektliste gefunden', 3000); return; }
+
+    // Validate + normalise each object
+    const clean = [];
+    for (const o of imported) {
+      if (typeof o.lat !== 'number' || typeof o.lon !== 'number' || !o.name) continue;
+      clean.push({
+        id: (o.id != null ? String(o.id) : Date.now().toString()) + Math.random().toString(36).slice(2,5),
+        name: String(o.name),
+        lat: o.lat,
+        lon: o.lon,
+        radius: typeof o.radius === 'number' ? o.radius : 50,
+        imgData: o.imgData || null
+      });
+    }
+    if (clean.length === 0) { showStatus('❌ Keine gültigen Objekte in der Datei', 3000); return; }
+
+    // Merge: skip objects at (almost) identical coordinates + name to avoid duplicates
+    let added = 0;
+    for (const o of clean) {
+      const dup = objects.some(ex =>
+        ex.name === o.name &&
+        Math.abs(ex.lat - o.lat) < 1e-6 &&
+        Math.abs(ex.lon - o.lon) < 1e-6
+      );
+      if (!dup) { objects.push(o); loadImg(o); added++; }
+    }
+
+    if (added === 0) {
+      showStatus('ℹ️ Alle Objekte waren bereits vorhanden', 3000);
+    } else if (!save()) {
+      // Storage full → roll back the ones we just added
+      objects.splice(objects.length - added, added);
+      showStatus('⚠️ Import zu groß für den Speicher', 3500);
+    } else {
+      renderObjList();
+      updateFoundCount();
+      showStatus(`⬇️ ${added} Objekt${added>1?'e':''} importiert`);
+    }
+    document.getElementById('import-file').value = '';
+  };
+  reader.readAsText(file);
 });
 </script>
 </body>
