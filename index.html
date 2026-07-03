@@ -206,6 +206,23 @@
     }
     .io-btn:active { background:rgba(0,255,231,.15); }
     .io-btn span { font-size:15px; }
+
+    /* ── RADAR RANGE SELECTOR ── */
+    #radar-range-row {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 20px 4px;
+    }
+    .rr-label { font-size:13px; color:rgba(255,255,255,.6); font-weight:600; }
+    .rr-btns { display:flex; gap:6px; }
+    .rr-btn {
+      min-width:44px; height:32px; border-radius:9px;
+      border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.04);
+      color:rgba(255,255,255,.6); font-size:12px; font-weight:700;
+      cursor:pointer; transition:all .18s; font-family:var(--font);
+    }
+    .rr-btn.active {
+      border-color:var(--neon); color:var(--neon); background:rgba(0,255,231,.1);
+    }
     .form-title { font-size:14px; font-weight:700; color:var(--neon); letter-spacing:.06em; text-transform:uppercase; margin-bottom:14px; }
     .form-row { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
     .form-row label { font-size:12px; color:rgba(255,255,255,.5); }
@@ -483,6 +500,14 @@
     <button class="io-btn" id="import-btn"><span>⬇️</span> Importieren</button>
     <input type="file" id="import-file" accept="application/json,.json">
   </div>
+  <div id="radar-range-row">
+    <span class="rr-label">📡 Radar-Reichweite</span>
+    <div class="rr-btns">
+      <button class="rr-btn" data-range="10">10m</button>
+      <button class="rr-btn" data-range="20">20m</button>
+      <button class="rr-btn" data-range="50">50m</button>
+    </div>
+  </div>
   <div id="object-list"></div>
   <div id="add-form">
     <div class="form-title">+ Neues Objekt</div>
@@ -555,6 +580,7 @@ let objects   = JSON.parse(localStorage.getItem('ar_objects')  || '[]');
 let foundIds  = JSON.parse(localStorage.getItem('ar_found')    || '[]');
 let userPos   = null;
 let heading   = 0;
+let radarRange = parseInt(localStorage.getItem('ar_radar_range') || '50'); // meters: 10/20/50
 let stream    = null;
 let animFrame = null;
 let foundCooldown = {};
@@ -680,13 +706,15 @@ function drawRadar() {
 
   if (!userPos) { requestAnimationFrame(drawRadar); return; }
 
-  // Sort objects by distance, show nearest 3
+  // Sort objects by distance, keep only those within the selected radar range, show nearest 3
   const sorted = objects
     .map(o => ({ o, d: haversineM(userPos.lat,userPos.lon,o.lat,o.lon) }))
+    .filter(x => x.d <= radarRange)
     .sort((a,b) => a.d-b.d)
     .slice(0,3);
 
-  const maxRange = sorted.length > 0 ? Math.max(sorted[0].d * 2.5, 100) : 500;
+  // Outer ring = exactly the selected range
+  const maxRange = radarRange;
 
   sorted.forEach(({o, d}, idx) => {
     const bear = bearingDeg(userPos.lat,userPos.lon,o.lat,o.lon);
@@ -743,6 +771,12 @@ function drawRadar() {
   rCtx.closePath();
   rCtx.fillStyle='rgba(255,255,255,.06)'; rCtx.fill();
   rCtx.strokeStyle='rgba(255,255,255,.2)'; rCtx.lineWidth=1; rCtx.stroke();
+
+  // Range label (outer ring = selected range)
+  rCtx.font='bold 8px monospace';
+  rCtx.fillStyle='rgba(0,255,231,.65)';
+  rCtx.textAlign='center'; rCtx.textBaseline='bottom';
+  rCtx.fillText(`${radarRange}m`, cx, S-2);
 
   requestAnimationFrame(drawRadar);
 }
@@ -1211,6 +1245,22 @@ document.getElementById('export-btn').addEventListener('click', () => {
 document.getElementById('import-btn').addEventListener('click', () => {
   document.getElementById('import-file').click();
 });
+
+// Radar range selector (10 / 20 / 50 m)
+function applyRadarRange(m) {
+  radarRange = m;
+  localStorage.setItem('ar_radar_range', String(m));
+  document.querySelectorAll('.rr-btn').forEach(b =>
+    b.classList.toggle('active', parseInt(b.dataset.range) === m)
+  );
+}
+document.querySelectorAll('.rr-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    applyRadarRange(parseInt(btn.dataset.range));
+    showStatus(`📡 Radar-Reichweite: ${btn.dataset.range}m`);
+  });
+});
+applyRadarRange(radarRange); // restore saved choice on load
 
 document.getElementById('import-file').addEventListener('change', e => {
   const file = e.target.files[0];
